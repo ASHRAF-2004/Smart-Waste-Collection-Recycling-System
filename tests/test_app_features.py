@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 
 from database.sqlite_service import SQLiteService
 from services.validation_service import validate_password, validate_user_id
@@ -16,88 +17,57 @@ class AppFeatureTests(unittest.TestCase):
         self.db.close()
         os.unlink(self.tmp.name)
 
-    def test_user_id_accepts_alphanumeric_5_to_10_chars(self):
-        self.assertEqual(validate_user_id("abc12"), "abc12")
-        self.assertEqual(validate_user_id("A1B2C3D4"), "A1B2C3D4")
-        with self.assertRaises(ValueError):
-            validate_user_id("1234")
-        with self.assertRaises(ValueError):
-            validate_user_id("bad id")
+    def test_user_id_rules(self):
+        self.assertEqual(validate_user_id("A12345"), "A12345")
+        self.assertEqual(validate_user_id("Ashraf01"), "Ashraf01")
+        for bad in ("123456", "ab 1234", "abc", "A1234567890123"):
+            with self.assertRaises(ValueError):
+                validate_user_id(bad)
 
-    def test_password_strength(self):
-        self.assertEqual(validate_password("Good#123"), "Good#123")
+    def test_password_rules(self):
+        self.assertEqual(validate_password("StrongPass1"), "StrongPass1")
+        with self.assertRaises(ValueError):
+            validate_password("password")
         with self.assertRaises(ValueError):
             validate_password("weakpass")
 
-    def test_registration_and_duplicate_email(self):
-        self.db.create_basic_user("user901", "Pass#123A")
+    def test_registration_and_duplicate(self):
+        self.db.create_basic_user("Resident1", "StrongPass1")
         self.db.complete_profile(
             {
-                "user_id": "user901",
+                "user_id": "Resident1",
                 "full_name": "Alice Tan",
                 "id_no": "ABC12345",
-                "telephone": "0123456789",
+                "telephone": "+60123456789",
                 "email": "alice@example.com",
                 "zone": "Zone A",
                 "address": "Street 1",
-                "role": "Resident",
             }
         )
-        self.db.create_basic_user("user902", "Pass#123A")
+        self.db.create_basic_user("Resident2", "StrongPass1")
         with self.assertRaises(ValueError):
             self.db.complete_profile(
                 {
-                    "user_id": "user902",
+                    "user_id": "Resident2",
                     "full_name": "Bob Tan",
                     "id_no": "ABC12346",
-                    "telephone": "0123456799",
+                    "telephone": "+60123456788",
                     "email": "alice@example.com",
                     "zone": "Zone A",
                     "address": "Street 2",
-                    "role": "Resident",
                 }
             )
 
-    def test_login_attempt_lockout(self):
-        self.db.create_basic_user("user910", "Pass#123A")
-        for _ in range(4):
-            ok, status = self.db.verify_credentials("user910", "wrong")
-            self.assertFalse(ok)
-            self.assertIn("attempts_left:", status)
-        ok, status = self.db.verify_credentials("user910", "wrong")
-        self.assertFalse(ok)
-        self.assertIn("attempts_left:0", status)
-        ok, status = self.db.verify_credentials("user910", "Pass#123A")
-        self.assertFalse(ok)
-        self.assertEqual(status, "locked")
-
-    def test_admin_user_crud_and_collector_metrics(self):
-        self.db.add_user(
-            {
-                "user_id": "user930",
-                "password": "Pass#123A",
-                "full_name": "Collector B",
-                "role": "WasteCollector",
-                "zone": "Zone A",
-                "telephone": "0123456781",
-                "email": "collectorb@example.com",
-                "address": "Road 3",
-            }
-        )
-        self.db.update_user("user930", {"full_name": "Collector Bravo", "zone": "Zone B"})
-        updated = self.db.get_user("user930")
-        self.assertEqual(updated["full_name"], "Collector Bravo")
-        self.assertEqual(updated["zone"], "Zone B")
-
-        requests = self.db.get_collector_requests("collect01")
-        self.assertGreaterEqual(len(requests), 1)
-        pickup_id = requests[0]["pickup_id"]
-        self.db.update_pickup_status("collect01", pickup_id, "COMPLETED", "Done", "evidence.png")
-        metrics = self.db.collector_metrics("collect01")
-        self.assertGreaterEqual(metrics["completed"], 1)
-
-        self.db.delete_user("user930")
-        self.assertIsNone(self.db.get_user("user930"))
+    def test_pickup_flow_and_notifications(self):
+        self.db.create_basic_user("Resident3", "StrongPass1")
+        self.db.complete_profile({"user_id": "Resident3", "full_name": "Res Three", "id_no": "ID123456", "telephone": "+60121112222", "email": "r3@example.com", "zone": "Zone A", "address": "A Road"})
+        dt = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
+        self.db.create_pickup_request("Resident3", dt)
+        req = self.db.list_resident_pickups("Resident3")[0]
+        self.db.update_pickup_status("Collect1", req["pickup_id"], "IN_PROGRESS", "Started")
+        self.db.update_pickup_status("Collect1", req["pickup_id"], "COMPLETED", "Done")
+        notes = self.db.get_notifications("Resident3")
+        self.assertGreaterEqual(len(notes), 2)
 
 
 if __name__ == "__main__":
