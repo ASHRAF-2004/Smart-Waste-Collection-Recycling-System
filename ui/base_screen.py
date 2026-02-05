@@ -50,6 +50,7 @@ class BaseScreen(tk.Frame):
         theme = self.app.theme
         self.configure(bg=theme["bg"])
         if self.back_btn is not None:
+            self.back_btn.configure(text=self.app.translate("back"))
             self.back_btn.configure(bg=theme["secondary_bg"], fg=theme["secondary_fg"], activebackground=theme["secondary_bg"])
         self.theme_btn.configure(text=theme["icon"], bg=theme["bg"], fg=theme["text"], activebackground=theme["bg"])
         self.logo_lbl.configure(bg=theme["bg"], fg=theme["text"])

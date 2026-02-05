@@ -9,7 +9,7 @@ class CongratsScreen(BaseScreen):
         self.user_id = user_id
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        self.add_top_bar(back_command=lambda: self.app.show_screen("Login"))
+        self.add_top_bar(back_command=self.app.go_back)
 
         self.wrap = tk.Frame(self)
         self.wrap.grid(row=1, column=0)
