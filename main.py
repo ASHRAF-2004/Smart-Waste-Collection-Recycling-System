@@ -1,8 +1,6 @@
 """App entry for Smart Waste Collection and Recycling System prototype."""
 import tkinter as tk
 from tkinter import ttk
-from pathlib import Path
-
 from db.database import Database
 from dao.user_dao import UserDAO
 from dao.zone_dao import ZoneDAO
@@ -21,6 +19,7 @@ from ui.login_window import LoginWindow
 from ui.resident_dashboard import ResidentDashboard
 from ui.collector_dashboard import CollectorDashboard
 from ui.admin_dashboard import AdminDashboard
+from ui import sv_ttk
 
 
 class App(tk.Tk):
@@ -53,14 +52,12 @@ class App(tk.Tk):
 
     def _init_theme(self, default_mode="light"):
         """Load and apply Sun Valley theme so every ttk screen inherits it."""
-        theme_script = Path(__file__).resolve().parent / "ui" / "sv_ttk" / "sv.tcl"
-        self.tk.call("source", str(theme_script))
-        self.tk.call("set_theme", default_mode)
+        sv_ttk.set_theme(default_mode, root=self)
 
     def set_theme_mode(self, mode):
         """Allow runtime switch between light/dark modes when needed."""
         if mode in {"light", "dark"}:
-            self.tk.call("set_theme", mode)
+            sv_ttk.set_theme(mode, root=self)
 
     def clear_current(self):
         if self.current is not None:
