@@ -1,14 +1,15 @@
 """Validation helpers for login and registration flow."""
 import re
 
-USER_ID_RE = re.compile(r"^\d{3,10}$")
+USER_NUMERIC_RE = re.compile(r"^\d{3,10}$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PASSWORD_UPPER_RE = re.compile(r"[A-Z]")
 PASSWORD_LOWER_RE = re.compile(r"[a-z]")
 PASSWORD_DIGIT_RE = re.compile(r"\d")
+PASSWORD_SYMBOL_RE = re.compile(r"[^A-Za-z0-9]")
 NAME_RE = re.compile(r"^[A-Za-z ]+$")
 ALNUM_RE = re.compile(r"^[A-Za-z0-9]+$")
 PHONE_RE = re.compile(r"^\d{9,12}$")
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def require(value: str, label: str) -> str:
@@ -18,27 +19,31 @@ def require(value: str, label: str) -> str:
     return text
 
 
+def is_valid_user_identifier(user_id: str) -> bool:
+    uid = (user_id or "").strip()
+    return bool(USER_NUMERIC_RE.match(uid) or EMAIL_RE.match(uid.lower()))
+
+
 def validate_user_id(user_id: str) -> str:
     uid = (user_id or "").strip()
-    if not USER_ID_RE.match(uid):
-        raise ValueError("User ID must be numeric and 3-10 digits long.")
-    return uid
+    if not is_valid_user_identifier(uid):
+        raise ValueError("error_user_id")
+    return uid.lower() if "@" in uid else uid
 
 
 def validate_password(password: str, user_id: str = "") -> str:
     pwd = require(password, "Password")
-    if " " in pwd:
-        raise ValueError("Password cannot contain spaces.")
-    if len(pwd) < 8:
-        raise ValueError("Password must be at least 8 characters.")
-    if not PASSWORD_UPPER_RE.search(pwd):
-        raise ValueError("Password must include at least 1 uppercase letter.")
-    if not PASSWORD_LOWER_RE.search(pwd):
-        raise ValueError("Password must include at least 1 lowercase letter.")
-    if not PASSWORD_DIGIT_RE.search(pwd):
-        raise ValueError("Password must include at least 1 digit.")
+    if (
+        " " in pwd
+        or len(pwd) < 8
+        or not PASSWORD_UPPER_RE.search(pwd)
+        or not PASSWORD_LOWER_RE.search(pwd)
+        or not PASSWORD_DIGIT_RE.search(pwd)
+        or not PASSWORD_SYMBOL_RE.search(pwd)
+    ):
+        raise ValueError("error_password_strength")
     if user_id and pwd == user_id:
-        raise ValueError("Password cannot be the same as User ID.")
+        raise ValueError("error_password_strength")
     return pwd
 
 
@@ -52,7 +57,7 @@ def validate_registration_step1(user_id: str, password: str, confirm_password: s
     uid = validate_user_id(user_id)
     pwd = validate_password(password, uid)
     if pwd != (confirm_password or ""):
-        raise ValueError("Confirm Password must match Password.")
+        raise ValueError("error_password_match")
     return uid, pwd
 
 
@@ -63,6 +68,8 @@ def validate_filling_info(data: dict) -> dict:
         "telephone": require(data.get("telephone", ""), "Telephone No."),
         "email": require(data.get("email", ""), "Email"),
         "zone": require(data.get("zone", ""), "Residential Zone"),
+        "address": (data.get("address", "") or "").strip(),
+        "role": require(data.get("role", ""), "Role"),
     }
 
     if len(cleaned["full_name"]) < 3 or not NAME_RE.match(cleaned["full_name"]):
@@ -77,23 +84,13 @@ def validate_filling_info(data: dict) -> dict:
         raise ValueError("Email format is invalid.")
 
     cleaned["id_no"] = cleaned["id_no"].upper()
+    if cleaned["role"] not in ("Resident", "WasteCollector"):
+        raise ValueError("Role is invalid.")
     return cleaned
-
-
-def validate_registration_form(data: dict) -> dict:
-    uid = validate_user_id(data.get("user_id", ""))
-    pwd = validate_password(data.get("password", ""), uid)
-    profile = validate_filling_info(data)
-    return {"user_id": uid, "password": pwd, **profile}
 
 
 def collect_filling_info_errors(data: dict) -> dict[str, str]:
     errors = {}
-    try:
-        validate_filling_info(data)
-    except ValueError:
-        pass
-
     name = (data.get("full_name") or "").strip()
     if not name:
         errors["full_name"] = "Full Name is required."
@@ -121,5 +118,9 @@ def collect_filling_info_errors(data: dict) -> dict[str, str]:
     zone = (data.get("zone") or "").strip()
     if not zone:
         errors["zone"] = "Please select a zone."
+
+    role = (data.get("role") or "").strip()
+    if role not in ("Resident", "WasteCollector"):
+        errors["role"] = "Please select a valid role."
 
     return errors

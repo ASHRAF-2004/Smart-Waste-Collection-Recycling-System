@@ -59,10 +59,10 @@ class LoginScreen(BaseScreen):
             uid_ok = True
             self.user_err.configure(text="")
         except ValueError as exc:
-            self.user_err.configure(text=str(exc))
+            self.user_err.configure(text=self.app.translate(str(exc)) if str(exc).startswith("error_") else str(exc))
 
         if not pwd:
-            self.pass_err.configure(text="Password is required.")
+            self.pass_err.configure(text=self.app.translate("error_password_required"))
             pwd_ok = False
         else:
             self.pass_err.configure(text="")
