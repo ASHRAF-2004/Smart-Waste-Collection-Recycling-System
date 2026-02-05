@@ -45,7 +45,9 @@ class SQLiteService:
                 address TEXT,
                 total_points INTEGER NOT NULL DEFAULT 0,
                 failed_attempts INTEGER NOT NULL DEFAULT 0,
-                locked_until TEXT
+                locked_until TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS pickup_request (
@@ -53,6 +55,7 @@ class SQLiteService:
                 resident_id TEXT NOT NULL REFERENCES users(user_id),
                 zone TEXT NOT NULL,
                 requested_datetime TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                scheduled_datetime TEXT,
                 status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','COMPLETED','FAILED')),
                 assigned_collector_id TEXT REFERENCES users(user_id)
             );
@@ -98,15 +101,9 @@ class SQLiteService:
             """
         )
 
-        self._safe_add_column("users", "role", "TEXT NOT NULL DEFAULT 'Resident'")
-        self._safe_add_column("users", "address", "TEXT")
-        self._safe_add_column("users", "total_points", "INTEGER NOT NULL DEFAULT 0")
-        self._safe_add_column("users", "failed_attempts", "INTEGER NOT NULL DEFAULT 0")
-        self._safe_add_column("users", "locked_until", "TEXT")
-        self._safe_add_column("recycling_log", "points_awarded", "INTEGER NOT NULL DEFAULT 0")
-        self._safe_add_column("pickup_request", "assigned_collector_id", "TEXT")
-        self._safe_add_column("notification", "source_type", "TEXT NOT NULL DEFAULT 'SYSTEM'")
-
+        self._safe_add_column("users", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        self._safe_add_column("users", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        self._safe_add_column("pickup_request", "scheduled_datetime", "TEXT")
         self.conn.commit()
 
     def _safe_add_column(self, table: str, column: str, ddl: str):
@@ -123,15 +120,45 @@ class SQLiteService:
             INSERT OR IGNORE INTO users(user_id,password_hash,role,full_name,email,zone)
             VALUES(?,?,?,?,?,?)
             """,
-            ("admin@city.gov", hash_password("Admin#123"), "MunicipalAdmin", "City Admin", "admin@city.gov", "Zone A"),
+            ("admin01", hash_password("Admin#123"), "MunicipalAdmin", "City Admin", "admin@city.gov", "Zone A"),
         )
         self.conn.execute(
             """
             INSERT OR IGNORE INTO users(user_id,password_hash,role,full_name,email,zone)
             VALUES(?,?,?,?,?,?)
             """,
-            ("2001", hash_password("Collector#123"), "WasteCollector", "Collector One", "collector1@waste.local", "Zone A"),
+            ("collect01", hash_password("Collector#123"), "WasteCollector", "Collector One", "collector1@waste.local", "Zone A"),
         )
+        resident_count = self.conn.execute("SELECT COUNT(*) AS c FROM users WHERE role='Resident'").fetchone()["c"]
+        if resident_count == 0:
+            self.conn.execute(
+                """
+                INSERT INTO users(user_id,password_hash,role,full_name,id_no,telephone,email,zone,address,total_points)
+                VALUES(?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    "res1001",
+                    hash_password("Resident#123"),
+                    "Resident",
+                    "Resident Sample",
+                    "RES10001",
+                    "0123456789",
+                    "resident@example.com",
+                    "Zone A",
+                    "Jalan Contoh 1",
+                    20,
+                ),
+            )
+
+        pickup_count = self.conn.execute("SELECT COUNT(*) AS c FROM pickup_request").fetchone()["c"]
+        if pickup_count == 0:
+            self.conn.execute(
+                """
+                INSERT INTO pickup_request(resident_id,zone,requested_datetime,scheduled_datetime,status,assigned_collector_id)
+                VALUES(?,?,?,?,?,?)
+                """,
+                ("res1001", "Zone A", "2026-01-10 10:00:00", "2026-01-11 09:00:00", "PENDING", "collect01"),
+            )
         self.conn.commit()
 
     def _is_duplicate(self, user_id: str, email: str) -> bool:
@@ -161,7 +188,7 @@ class SQLiteService:
             cursor = self.conn.execute(
                 """
                 UPDATE users
-                SET full_name=?, id_no=?, telephone=?, email=?, zone=?, address=?, role=?
+                SET full_name=?, id_no=?, telephone=?, email=?, zone=?, address=?, role=?, updated_at=CURRENT_TIMESTAMP
                 WHERE user_id=?
                 """,
                 (
@@ -184,8 +211,8 @@ class SQLiteService:
     def verify_credentials(self, user_id: str, password: str) -> tuple[bool, str | None]:
         try:
             user = self.conn.execute(
-                "SELECT user_id,password_hash,failed_attempts,locked_until FROM users WHERE user_id=? OR lower(email)=lower(?)",
-                (user_id, user_id),
+                "SELECT user_id,password_hash,failed_attempts,locked_until FROM users WHERE user_id=?",
+                (user_id,),
             ).fetchone()
             if not user:
                 return False, "invalid"
@@ -219,6 +246,85 @@ class SQLiteService:
     def get_user(self, user_id: str):
         return self.conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
 
+    def list_zones(self):
+        return self.conn.execute("SELECT zone_name FROM zone ORDER BY zone_name").fetchall()
+
+    def create_zone(self, zone_name: str):
+        self.conn.execute("INSERT INTO zone(zone_name) VALUES(?)", (zone_name.strip(),))
+        self.conn.commit()
+
+    def update_zone(self, old_name: str, new_name: str):
+        self.conn.execute("UPDATE zone SET zone_name=? WHERE zone_name=?", (new_name.strip(), old_name.strip()))
+        self.conn.execute("UPDATE users SET zone=? WHERE zone=?", (new_name.strip(), old_name.strip()))
+        self.conn.execute("UPDATE pickup_request SET zone=? WHERE zone=?", (new_name.strip(), old_name.strip()))
+        self.conn.commit()
+
+    def delete_zone(self, zone_name: str):
+        self.conn.execute("UPDATE users SET zone='' WHERE zone=?", (zone_name.strip(),))
+        self.conn.execute("UPDATE pickup_request SET zone='' WHERE zone=?", (zone_name.strip(),))
+        self.conn.execute("DELETE FROM zone WHERE zone_name=?", (zone_name.strip(),))
+        self.conn.commit()
+
+    def list_users(self, sort_by: str = "full_name"):
+        sort_cols = {"full_name": "full_name", "role": "role", "zone": "zone"}
+        order_col = sort_cols.get(sort_by, "full_name")
+        return self.conn.execute(
+            f"""
+            SELECT user_id,full_name,role,zone,telephone,email,total_points
+            FROM users
+            ORDER BY {order_col} COLLATE NOCASE ASC, user_id ASC
+            """
+        ).fetchall()
+
+    def add_user(self, payload: dict):
+        self.conn.execute(
+            """
+            INSERT INTO users(user_id,password_hash,role,full_name,id_no,telephone,email,zone,address)
+            VALUES(?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                payload["user_id"],
+                hash_password(payload["password"]),
+                payload["role"],
+                payload.get("full_name", ""),
+                payload.get("id_no", ""),
+                payload.get("telephone", ""),
+                payload.get("email", "").lower(),
+                payload.get("zone", ""),
+                payload.get("address", ""),
+            ),
+        )
+        self.conn.commit()
+
+    def update_user(self, user_id: str, updates: dict):
+        if not updates:
+            return
+        columns = []
+        values = []
+        for key, value in updates.items():
+            if key == "password":
+                columns.append("password_hash=?")
+                values.append(hash_password(value))
+            elif key in {"full_name", "role", "zone", "telephone", "email", "address", "id_no"}:
+                columns.append(f"{key}=?")
+                values.append(value.lower() if key == "email" else value)
+        if not columns:
+            return
+        columns.append("updated_at=CURRENT_TIMESTAMP")
+        values.append(user_id)
+        self.conn.execute(f"UPDATE users SET {', '.join(columns)} WHERE user_id=?", values)
+        self.conn.commit()
+
+    def delete_user(self, user_id: str):
+        self.conn.execute("DELETE FROM notification WHERE user_id=?", (user_id,))
+        self.conn.execute("DELETE FROM reward_transactions WHERE user_id=?", (user_id,))
+        self.conn.execute("DELETE FROM pickup_status_update WHERE updated_by_collector_id=?", (user_id,))
+        self.conn.execute("UPDATE pickup_request SET assigned_collector_id=NULL WHERE assigned_collector_id=?", (user_id,))
+        self.conn.execute("DELETE FROM pickup_request WHERE resident_id=?", (user_id,))
+        self.conn.execute("DELETE FROM recycling_log WHERE resident_id=?", (user_id,))
+        self.conn.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+        self.conn.commit()
+
     def create_recycling_log(self, resident_id: str, category: str, weight_kg: float) -> int:
         multiplier = {"plastic": 5, "paper": 3, "glass": 4, "metal": 6}.get(category.lower(), 2)
         points = int(weight_kg * multiplier)
@@ -250,6 +356,15 @@ class SQLiteService:
             (user_id,),
         ).fetchall()
 
+    def get_admin_notifications(self):
+        return self.conn.execute(
+            """
+            SELECT n.notification_id,n.user_id,u.full_name,n.title,n.message,n.created_at,n.source_type
+            FROM notification n LEFT JOIN users u ON u.user_id=n.user_id
+            ORDER BY n.created_at DESC
+            """
+        ).fetchall()
+
     def unread_count(self, user_id: str) -> int:
         row = self.conn.execute(
             "SELECT COUNT(*) AS c FROM notification WHERE user_id=? AND read_at IS NULL",
@@ -261,35 +376,40 @@ class SQLiteService:
         self.conn.execute("UPDATE notification SET read_at=CURRENT_TIMESTAMP WHERE user_id=? AND read_at IS NULL", (user_id,))
         self.conn.commit()
 
-    def admin_zone_crud(self, action: str, zone_name: str, old_name: str | None = None):
-        if action == "add":
-            self.conn.execute("INSERT INTO zone(zone_name) VALUES(?)", (zone_name,))
-        elif action == "delete":
-            self.conn.execute("DELETE FROM zone WHERE zone_name=?", (zone_name,))
-        elif action == "edit" and old_name:
-            self.conn.execute("UPDATE zone SET zone_name=? WHERE zone_name=?", (zone_name, old_name))
+    def add_notification(self, user_id: str, title: str, message: str, source_type: str = "SYSTEM"):
+        self.conn.execute(
+            "INSERT INTO notification(user_id,title,message,source_type) VALUES(?,?,?,?)",
+            (user_id, title, message, source_type),
+        )
         self.conn.commit()
 
     def get_admin_stats(self) -> dict[str, Any]:
-        waste = self.conn.execute(
-            "SELECT zone, category, SUM(weight_kg) AS total FROM recycling_log rl JOIN users u ON u.user_id=rl.resident_id GROUP BY zone, category"
-        ).fetchall()
-        participation = self.conn.execute(
-            "SELECT substr(logged_at,1,7) AS month, COUNT(DISTINCT resident_id) AS participants FROM recycling_log GROUP BY month ORDER BY month"
-        ).fetchall()
-        avg_pickup_time = self.conn.execute(
-            """
-            SELECT AVG((julianday(psu.timestamp)-julianday(pr.requested_datetime))*24) AS avg_hours
-            FROM pickup_request pr JOIN pickup_status_update psu ON psu.pickup_id=pr.pickup_id
-            WHERE psu.new_status IN ('COMPLETED','FAILED')
-            """
-        ).fetchone()["avg_hours"]
-        return {"waste": waste, "participation": participation, "avg_pickup_hours": round(avg_pickup_time or 0, 2)}
+        users = self.conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+        pickups = self.conn.execute("SELECT COUNT(*) AS c FROM pickup_request").fetchone()["c"]
+        zones = self.conn.execute("SELECT COUNT(*) AS c FROM zone").fetchone()["c"]
+        notes = self.conn.execute("SELECT COUNT(*) AS c FROM notification").fetchone()["c"]
+        return {"users": users, "pickups": pickups, "zones": zones, "notifications": notes}
 
-    def get_collector_requests(self, collector_id: str):
+    def get_collector_requests(self, collector_id: str, zone_filter: str = "", status_filter: str = "", sort_by: str = "date"):
+        clauses = ["pr.assigned_collector_id=?"]
+        params: list[Any] = [collector_id]
+        if zone_filter:
+            clauses.append("pr.zone=?")
+            params.append(zone_filter)
+        if status_filter:
+            clauses.append("pr.status=?")
+            params.append(status_filter)
+        order_clause = "pr.requested_datetime DESC" if sort_by == "date" else "pr.zone ASC, pr.requested_datetime DESC"
         return self.conn.execute(
-            "SELECT * FROM pickup_request WHERE assigned_collector_id=? ORDER BY requested_datetime DESC",
-            (collector_id,),
+            f"""
+            SELECT pr.pickup_id,pr.resident_id,u.full_name AS resident_name,pr.zone,pr.requested_datetime,
+                   pr.scheduled_datetime,pr.status,pr.assigned_collector_id
+            FROM pickup_request pr
+            LEFT JOIN users u ON u.user_id=pr.resident_id
+            WHERE {' AND '.join(clauses)}
+            ORDER BY {order_clause}
+            """,
+            params,
         ).fetchall()
 
     def update_pickup_status(self, collector_id: str, pickup_id: int, new_status: str, comment: str = "", evidence_image: str = ""):
@@ -303,18 +423,28 @@ class SQLiteService:
         )
         self.conn.commit()
 
+    def collector_metrics(self, collector_id: str):
+        completed = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM pickup_request WHERE assigned_collector_id=? AND status='COMPLETED'",
+            (collector_id,),
+        ).fetchone()["c"]
+        points = completed * 10
+        avg_hours = self.conn.execute(
+            """
+            SELECT AVG((julianday(psu.timestamp)-julianday(pr.requested_datetime))*24) AS avg_hours
+            FROM pickup_request pr
+            JOIN pickup_status_update psu ON psu.pickup_id=pr.pickup_id
+            WHERE pr.assigned_collector_id=? AND psu.new_status IN ('COMPLETED','FAILED')
+            """,
+            (collector_id,),
+        ).fetchone()["avg_hours"]
+        return {"completed": completed, "points": points, "efficiency_hours": round(avg_hours or 0, 2)}
+
     def list_pickup_requests(self):
         return self.conn.execute("SELECT * FROM pickup_request ORDER BY requested_datetime DESC").fetchall()
 
     def assign_pickup(self, pickup_id: int, collector_id: str):
         self.conn.execute("UPDATE pickup_request SET assigned_collector_id=? WHERE pickup_id=?", (collector_id, pickup_id))
-        self.conn.commit()
-
-    def add_notification(self, user_id: str, title: str, message: str, source_type: str = "SYSTEM"):
-        self.conn.execute(
-            "INSERT INTO notification(user_id,title,message,source_type) VALUES(?,?,?,?)",
-            (user_id, title, message, source_type),
-        )
         self.conn.commit()
 
     def list_users_by_role(self, role: str):

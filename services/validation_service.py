@@ -1,7 +1,7 @@
 """Validation helpers for login and registration flow."""
 import re
 
-USER_NUMERIC_RE = re.compile(r"^\d{3,10}$")
+USER_ID_RE = re.compile(r"^[A-Za-z0-9]{5,10}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PASSWORD_UPPER_RE = re.compile(r"[A-Z]")
 PASSWORD_LOWER_RE = re.compile(r"[a-z]")
@@ -21,14 +21,14 @@ def require(value: str, label: str) -> str:
 
 def is_valid_user_identifier(user_id: str) -> bool:
     uid = (user_id or "").strip()
-    return bool(USER_NUMERIC_RE.match(uid) or EMAIL_RE.match(uid.lower()))
+    return bool(USER_ID_RE.match(uid))
 
 
 def validate_user_id(user_id: str) -> str:
     uid = (user_id or "").strip()
     if not is_valid_user_identifier(uid):
         raise ValueError("error_user_id")
-    return uid.lower() if "@" in uid else uid
+    return uid
 
 
 def validate_password(password: str, user_id: str = "") -> str:

@@ -17,15 +17,15 @@ class RegistrationScreen(BaseScreen):
         self.title_lbl = tk.Label(self.wrap, font=("Segoe UI", 25, "bold"), anchor="w")
         self.title_lbl.grid(row=0, column=0, sticky="w", pady=(20, 20))
 
-        self.user_lbl = tk.Label(self.wrap, font=("Segoe UI", 11))
+        self.user_lbl = tk.Label(self.wrap, font=("Segoe UI", 11, "bold"))
         self.user_lbl.grid(row=1, column=0, sticky="w")
         self.user_entry = tk.Entry(self.wrap, font=("Segoe UI", 12), width=34)
         self.user_entry.grid(row=2, column=0, sticky="w", ipady=7, pady=(5, 2))
         self.user_err = tk.Label(self.wrap, font=("Segoe UI", 9))
         self.user_err.grid(row=3, column=0, sticky="w")
 
-        self.password_lbl = tk.Label(self.wrap, font=("Segoe UI", 11))
-        self.password_lbl.grid(row=4, column=0, sticky="w")
+        self.password_lbl = tk.Label(self.wrap, font=("Segoe UI", 11, "bold"))
+        self.password_lbl.grid(row=4, column=0, sticky="w", pady=(8, 0))
         self.password_entry = tk.Entry(self.wrap, font=("Segoe UI", 12), show="*", width=34)
         self.password_entry.grid(row=5, column=0, sticky="w", ipady=7, pady=(5, 2))
         self.password_hint = tk.Label(self.wrap, font=("Segoe UI", 9))
@@ -33,8 +33,8 @@ class RegistrationScreen(BaseScreen):
         self.password_err = tk.Label(self.wrap, font=("Segoe UI", 9))
         self.password_err.grid(row=7, column=0, sticky="w")
 
-        self.confirm_lbl = tk.Label(self.wrap, font=("Segoe UI", 11))
-        self.confirm_lbl.grid(row=8, column=0, sticky="w")
+        self.confirm_lbl = tk.Label(self.wrap, font=("Segoe UI", 11, "bold"))
+        self.confirm_lbl.grid(row=8, column=0, sticky="w", pady=(8, 0))
         self.confirm_entry = tk.Entry(self.wrap, font=("Segoe UI", 12), show="*", width=34)
         self.confirm_entry.grid(row=9, column=0, sticky="w", ipady=7, pady=(5, 2))
         self.confirm_err = tk.Label(self.wrap, font=("Segoe UI", 9))
@@ -45,36 +45,41 @@ class RegistrationScreen(BaseScreen):
 
         for widget in (self.user_entry, self.password_entry, self.confirm_entry):
             widget.bind("<KeyRelease>", lambda _e: self._on_change())
+
+        self.user_entry.bind("<Tab>", lambda _e: self.password_entry.focus_set())
+        self.password_entry.bind("<Tab>", lambda _e: self.confirm_entry.focus_set())
         self.confirm_entry.bind("<Return>", lambda _e: self._submit())
 
     def _on_change(self):
-        uid = self.user_entry.get().strip()
-        pwd = self.password_entry.get()
-        cpwd = self.confirm_entry.get()
+        user_id_input = self.user_entry.get().strip()
+        password_input = self.password_entry.get()
+        confirm_password_input = self.confirm_entry.get()
 
-        uid_ok = False
+        user_id_is_valid = False
         try:
-            validate_user_id(uid)
-            uid_ok = True
+            validate_user_id(user_id_input)
+            user_id_is_valid = True
             self.user_err.configure(text="")
         except ValueError as exc:
             self.user_err.configure(text=self.app.translate(str(exc)) if str(exc).startswith("error_") else str(exc))
 
-        pwd_ok = False
+        password_is_valid = False
         try:
-            validate_password(pwd, uid)
-            pwd_ok = True
+            validate_password(password_input, user_id_input)
+            password_is_valid = True
             self.password_err.configure(text="")
         except ValueError as exc:
             self.password_err.configure(text=self.app.translate(str(exc)) if str(exc).startswith("error_") else str(exc))
 
-        confirm_ok = bool(cpwd and cpwd == pwd)
-        self.confirm_err.configure(text="" if confirm_ok or not cpwd else self.app.translate("error_password_match"))
+        confirm_password_is_valid = bool(confirm_password_input and confirm_password_input == password_input)
+        self.confirm_err.configure(
+            text="" if confirm_password_is_valid or not confirm_password_input else self.app.translate("error_password_match")
+        )
 
-        self.style_entry(self.user_entry, error=not uid_ok and bool(uid))
-        self.style_entry(self.password_entry, error=not pwd_ok and bool(pwd))
-        self.style_entry(self.confirm_entry, error=not confirm_ok and bool(cpwd))
-        self.continue_btn.configure(state=("normal" if uid_ok and pwd_ok and confirm_ok else "disabled"))
+        self.style_entry(self.user_entry, error=not user_id_is_valid and bool(user_id_input))
+        self.style_entry(self.password_entry, error=not password_is_valid and bool(password_input))
+        self.style_entry(self.confirm_entry, error=not confirm_password_is_valid and bool(confirm_password_input))
+        self.continue_btn.configure(state=("normal" if user_id_is_valid and password_is_valid and confirm_password_is_valid else "disabled"))
 
     def _submit(self):
         self.app.save_registration_step1(self.user_entry.get(), self.password_entry.get(), self.confirm_entry.get())
@@ -84,8 +89,8 @@ class RegistrationScreen(BaseScreen):
         th = self.app.theme
         self.wrap.configure(bg=th["bg"])
         self.title_lbl.configure(text=self.app.translate("user_registration"), bg=th["bg"], fg=th["text"])
-        self.user_lbl.configure(text=self.app.translate("new_user_id"), bg=th["bg"], fg=th["text"])
-        self.password_lbl.configure(text=self.app.translate("password"), bg=th["bg"], fg=th["text"])
+        self.user_lbl.configure(text=self.app.translate("enter_user_id"), bg=th["bg"], fg=th["text"])
+        self.password_lbl.configure(text=self.app.translate("enter_password"), bg=th["bg"], fg=th["text"])
         self.confirm_lbl.configure(text=self.app.translate("confirm_password"), bg=th["bg"], fg=th["text"])
         self.password_hint.configure(text=self.app.translate("pwd_hint"), bg=th["bg"], fg=th["muted"])
 
