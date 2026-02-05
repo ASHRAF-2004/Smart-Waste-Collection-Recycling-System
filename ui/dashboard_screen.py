@@ -9,7 +9,7 @@ class DashboardScreen(BaseScreen):
         self.user_id = user_id
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        self.add_top_bar()
+        self.add_top_bar(back_command=lambda: self.app.show_screen("Login"))
 
         wrap = tk.Frame(self)
         wrap.grid(row=1, column=0)
@@ -19,7 +19,7 @@ class DashboardScreen(BaseScreen):
         self.title_lbl.grid(row=0, column=0, pady=(20, 10))
         self.sub_lbl = tk.Label(wrap, font=("Segoe UI", 12))
         self.sub_lbl.grid(row=1, column=0, pady=8)
-        self.logout_btn = tk.Button(wrap, bd=0, width=20, pady=10, command=self.app.show_login)
+        self.logout_btn = tk.Button(wrap, bd=0, width=20, pady=10, command=lambda: self.app.show_screen("Login"))
         self.logout_btn.grid(row=2, column=0, pady=16)
 
     def refresh_ui(self):
