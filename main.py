@@ -53,7 +53,7 @@ class App(tk.Tk):
 
     def _init_theme(self, default_mode="light"):
         """Load and apply Sun Valley theme so every ttk screen inherits it."""
-        theme_script = Path(__file__).resolve().parent / "ui" / "sun-valley" / "sun-valley.tcl"
+        theme_script = Path(__file__).resolve().parent / "ui" / "sv_ttk" / "sv.tcl"
         self.tk.call("source", str(theme_script))
         self.tk.call("set_theme", default_mode)
 
