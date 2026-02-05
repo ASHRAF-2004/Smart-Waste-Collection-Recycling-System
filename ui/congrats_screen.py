@@ -9,7 +9,7 @@ class CongratsScreen(BaseScreen):
         self.user_id = user_id
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        self.add_top_bar()
+        self.add_top_bar(back_command=lambda: self.app.show_screen("Login"))
 
         self.wrap = tk.Frame(self)
         self.wrap.grid(row=1, column=0)
@@ -22,7 +22,7 @@ class CongratsScreen(BaseScreen):
         self.welcome_lbl.grid(row=2, column=0, pady=(8, 3))
         self.msg_lbl = tk.Label(self.wrap, font=("Segoe UI", 12))
         self.msg_lbl.grid(row=3, column=0, pady=(3, 20))
-        self.login_now_btn = tk.Button(self.wrap, bd=0, width=22, pady=10, command=self.app.show_login)
+        self.login_now_btn = tk.Button(self.wrap, bd=0, width=22, pady=10, command=lambda: self.app.show_screen("Login"))
         self.login_now_btn.grid(row=4, column=0)
 
     def refresh_ui(self):
