@@ -33,3 +33,13 @@ python3 main.py
 ```
 
 On first run, the app will create the local database file automatically under `db/prototype.db`.
+
+## Default demo accounts
+The prototype seeds the local SQLite database with these default accounts:
+
+| Role | User ID / Login | Password |
+| --- | --- | --- |
+| Municipal Admin | `admin@city.gov` | `Admin#123` |
+| Waste Collector | `2001` | `Collector#123` |
+
+Use these credentials to access the role-specific dashboards in a fresh local setup.
