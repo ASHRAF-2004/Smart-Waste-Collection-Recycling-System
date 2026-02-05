@@ -6,7 +6,6 @@ from ui.base_screen import BaseScreen
 
 
 class FillingInfoScreen(BaseScreen):
-    ZONES = ["", "Zone A", "Zone B", "Zone C", "Zone D"]
 
     def __init__(self, master, app, **kwargs):
         super().__init__(master, app, **kwargs)
@@ -67,22 +66,14 @@ class FillingInfoScreen(BaseScreen):
         self.zone_hint = tk.Label(self.form, font=("Segoe UI", 9))
         self.zone_hint.grid(row=base_row, column=1, sticky="w", padx=(16, 0))
 
-        self.zone_combo = ttk.Combobox(self.form, values=self.ZONES, state="readonly", width=40)
+        zones = ["", *[z["name"] for z in self.app.db.list_zones()]]
+        self.zone_combo = ttk.Combobox(self.form, values=zones, state="readonly", width=40)
         self.zone_combo.grid(row=base_row + 1, column=0, columnspan=2, sticky="ew", pady=(6, 2))
         self.zone_combo.current(0)
         self.zone_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_change())
 
         self.zone_err = tk.Label(self.form, font=("Segoe UI", 9), anchor="w")
         self.zone_err.grid(row=base_row + 2, column=0, columnspan=2, sticky="w", pady=(0, 8))
-
-        self.role_lbl = tk.Label(self.form, font=("Segoe UI", 11, "bold"))
-        self.role_lbl.grid(row=base_row + 3, column=0, sticky="w")
-        self.role_combo = ttk.Combobox(self.form, values=["Resident", "WasteCollector"], state="readonly", width=40)
-        self.role_combo.grid(row=base_row + 4, column=0, columnspan=2, sticky="ew", pady=(6, 2))
-        self.role_combo.current(0)
-        self.role_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_change())
-        self.role_err = tk.Label(self.form, font=("Segoe UI", 9), anchor="w")
-        self.role_err.grid(row=base_row + 5, column=0, columnspan=2, sticky="w", pady=(0, 8))
 
         self.continue_btn = tk.Button(self.form, bd=0, width=26, pady=10, command=self._continue_registration)
         self.continue_btn.grid(row=base_row + 6, column=0, columnspan=2, pady=10)
@@ -97,7 +88,6 @@ class FillingInfoScreen(BaseScreen):
             self.entries["email"][2],
             self.entries["address"][2],
             self.zone_combo,
-            self.role_combo,
             self.continue_btn,
         ]
         for idx, widget in enumerate(tab_order[:-1]):
@@ -118,7 +108,6 @@ class FillingInfoScreen(BaseScreen):
             "email": self.entries["email"][2].get(),
             "address": self.entries["address"][2].get(),
             "zone": self.zone_combo.get(),
-            "role": self.role_combo.get(),
         }
 
     def _on_change(self):
@@ -132,7 +121,6 @@ class FillingInfoScreen(BaseScreen):
             self.style_entry(entry_widget, error=key in validation_errors)
 
         self.zone_err.configure(text=validation_errors.get("zone", ""))
-        self.role_err.configure(text=validation_errors.get("role", ""))
         self.continue_btn.configure(state=("normal" if not validation_errors else "disabled"))
 
     def _continue_registration(self):
@@ -154,13 +142,10 @@ class FillingInfoScreen(BaseScreen):
 
         self.zone_lbl.configure(text=self.app.translate("enter_zone"), bg=th["bg"], fg=th["text"])
         self.zone_hint.configure(text=self.app.translate("zone_hint"), bg=th["bg"], fg=th["muted"])
-        self.role_lbl.configure(text=self.app.translate("enter_role"), bg=th["bg"], fg=th["text"])
         self.zone_err.configure(bg=th["bg"], fg="#D64545")
-        self.role_err.configure(bg=th["bg"], fg="#D64545")
         self.continue_btn.configure(text=self.app.translate("continue"), bg=th["primary_bg"], fg=th["primary_fg"], activebackground=th["primary_bg"])
 
         for _, (_, _, entry_widget, _, _) in self.entries.items():
             entry_widget.delete(0, tk.END)
         self.zone_combo.current(0)
-        self.role_combo.current(0)
         self.continue_btn.configure(state="disabled")

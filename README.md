@@ -1,45 +1,33 @@
 # Smart Waste Collection & Recycling System
 
-## Intro
-This project is a desktop prototype for a **Smart Waste Collection and Recycling System** built with Python and Tkinter.
+Tkinter + SQLite desktop prototype for university demo.
 
-It currently includes:
-- Login and registration flows.
-- A multi-step resident onboarding process.
-- Dashboard screens for different user roles.
-- Local SQLite storage for user and profile data.
-
-The app starts from `main.py`, launches a Tkinter GUI, and initializes a local SQLite database at `db/prototype.db`.
-
-## Requirements
-- Python 3.10+ (3.9+ may also work)
-- Tkinter (usually included with standard Python installations)
-- SQLite3 (included in Python standard library)
-
-No third-party Python packages are required for the current prototype.
-
-## How to run
-1. Open a terminal in the project root.
-2. Run the application:
-
+## Run
 ```bash
 python main.py
 ```
 
-If your system maps Python 3 to `python3`, use:
+## Default seeded accounts
+| Role | User ID | Password |
+|---|---|---|
+| MunicipalAdmin | `Admin001` | `Admin123A` |
+| WasteCollector | `Collect1` | `Collect123A` |
 
-```bash
-python3 main.py
-```
+## Feature checklist (prototype)
+- [x] User registration + authentication (validated User ID/password + hashed password)
+- [x] Resident onboarding form with scrollable frame and labeled fields
+- [x] Back-button navigation between screens
+- [x] Resident pickup scheduling and pickup history
+- [x] Collector pickup worklist + status workflow (IN_PROGRESS/COMPLETED/FAILED with fail reason)
+- [x] Offline route-order simulation (deterministic heuristic)
+- [x] Recycling log submission (type, weight, optional image upload)
+- [x] Reward points and recycling history
+- [x] Notification module (admin send + automatic status updates + pickup reminders)
+- [x] Dashboard metrics (simulated waste volume & recycling rate)
+- [x] Admin settings: zone CRUD, user CRUD, collector-zone assignment, monitoring stats
+- [x] Logging to `logs/app.log`
 
-On first run, the app will create the local database file automatically under `db/prototype.db`.
-
-## Default demo accounts
-The prototype seeds the local SQLite database with these default accounts:
-
-| Role | User ID / Login | Password |
-| --- | --- | --- |
-| Municipal Admin | `admin@city.gov` | `Admin#123` |
-| Waste Collector | `2001` | `Collector#123` |
-
-Use these credentials to access the role-specific dashboards in a fresh local setup.
+## Notes
+- Notifications are in-app only (stored in SQLite).
+- Upload images are copied to `uploads/`.
+- Database file is created at `db/prototype.db`.

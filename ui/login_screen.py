@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import messagebox
 
 from services.validation_service import validate_user_id
 from ui.base_screen import BaseScreen
@@ -47,6 +48,9 @@ class LoginScreen(BaseScreen):
 
         self.request_btn = tk.Button(form, command=lambda: self.app.show_screen("Registration"), bd=0, width=28, pady=10)
         self.request_btn.grid(row=7, column=0, pady=(4, 0))
+
+        self.forgot_btn = tk.Button(form, text="Forgot Password?", bd=0, command=lambda: messagebox.showinfo("Forgot Password", "Please contact admin."))
+        self.forgot_btn.grid(row=8, column=0, pady=(8, 0))
 
         self.user_entry.bind("<KeyRelease>", lambda _e: self._on_change())
         self.password_entry.bind("<KeyRelease>", lambda _e: self._on_change())
@@ -99,6 +103,7 @@ class LoginScreen(BaseScreen):
 
         self.login_btn.configure(text=self.app.translate("login"), bg=th["primary_bg"], fg=th["primary_fg"], activebackground=th["primary_bg"])
         self.request_btn.configure(text=self.app.translate("resident_requester"), bg=th["secondary_bg"], fg=th["secondary_fg"], activebackground=th["secondary_bg"])
+        self.forgot_btn.configure(bg=th["bg"], fg=th["muted"], activebackground=th["bg"])
 
         self.user_entry.delete(0, tk.END)
         self.password_entry.delete(0, tk.END)

@@ -1,5 +1,6 @@
 """Navigation controller and app state."""
 import logging
+from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox
 
@@ -17,9 +18,11 @@ from ui.filling_info_screen import FillingInfoScreen
 from ui.login_screen import LoginScreen
 from ui.registration_screen import RegistrationScreen
 
+Path("logs").mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
-    filename="app.log",
+    filename="logs/app.log",
     filemode="a",
     format="%(asctime)s %(levelname)s %(name)s - %(message)s",
 )
@@ -49,6 +52,13 @@ class SmartWasteApp(tk.Tk):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
+
+        try:
+            from ui import sv_ttk
+            sv_ttk.set_theme("light")
+        except Exception:
+            pass
+
         self.center_window()
         self.show_screen("Login")
 
@@ -74,6 +84,11 @@ class SmartWasteApp(tk.Tk):
 
     def toggle_theme(self):
         self.theme_mode = "dark" if self.theme_mode == "light" else "light"
+        try:
+            from ui import sv_ttk
+            sv_ttk.set_theme("dark" if self.theme_mode == "dark" else "light")
+        except Exception:
+            pass
         if self.current_frame:
             self.current_frame.refresh_ui()
 
