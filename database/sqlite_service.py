@@ -172,17 +172,32 @@ class SQLiteService:
         for name in ("Zone A", "Zone B"):
             self.conn.execute("INSERT OR IGNORE INTO zone(name) VALUES(?)", (name,))
         zone_a = self.get_zone_id_by_name("Zone A")
+        zone_b = self.get_zone_id_by_name("Zone B")
 
-        self.conn.execute(
-            """INSERT OR IGNORE INTO users(user_login_id,user_id,name,password_hash,role,zone_id)
-               VALUES(?,?,?,?,?,?)""",
-            ("admin01", "admin01", "Municipal Admin", hash_password("Admin@1234"), "MunicipalAdmin", zone_a),
-        )
-        self.conn.execute(
-            """INSERT OR IGNORE INTO users(user_login_id,user_id,name,password_hash,role,zone_id)
-               VALUES(?,?,?,?,?,?)""",
-            ("collector01", "collector01", "Collector One", hash_password("Collector@1234"), "WasteCollector", zone_a),
-        )
+        seeded_users = [
+            ("admin01", "admin01", "Municipal Admin", "Admin@1234", "MunicipalAdmin", zone_a),
+            ("collector01", "collector01", "Collector One", "Collector@1234", "WasteCollector", zone_a),
+            ("collector02", "collector02", "Collector Two", "Collector@1234", "WasteCollector", zone_a),
+            ("collector03", "collector03", "Collector Three", "Collector@1234", "WasteCollector", zone_b),
+        ]
+
+        for login_id, user_id, name, password, role, zone_id in seeded_users:
+            self.conn.execute(
+                """
+                INSERT INTO users(user_login_id,user_id,name,password_hash,role,zone_id,is_active,failed_attempts,locked_until)
+                VALUES(?,?,?,?,?,?,1,0,NULL)
+                ON CONFLICT(user_login_id) DO UPDATE SET
+                    user_id=excluded.user_id,
+                    name=excluded.name,
+                    password_hash=excluded.password_hash,
+                    role=excluded.role,
+                    zone_id=excluded.zone_id,
+                    is_active=1,
+                    failed_attempts=0,
+                    locked_until=NULL
+                """,
+                (login_id, user_id, name, hash_password(password), role, zone_id),
+            )
         self.conn.commit()
 
     def get_zone_id_by_name(self, name: str):

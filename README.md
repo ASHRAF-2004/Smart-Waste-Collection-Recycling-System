@@ -10,8 +10,10 @@ python main.py
 ## Default seeded accounts
 | Role | User ID | Password |
 |---|---|---|
-| MunicipalAdmin | `Admin001` | `Admin123A` |
-| WasteCollector | `Collect1` | `Collect123A` |
+| MunicipalAdmin | `admin01` | `Admin@1234` |
+| WasteCollector | `collector01` | `Collector@1234` |
+| WasteCollector | `collector02` | `Collector@1234` |
+| WasteCollector | `collector03` | `Collector@1234` |
 
 ## Feature checklist (prototype)
 - [x] User registration + authentication (validated User ID/password + hashed password)
