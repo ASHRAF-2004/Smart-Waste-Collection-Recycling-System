@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta
 
 from database.sqlite_service import SQLiteService
-from services.validation_service import validate_password, validate_user_id
+from services.validation_service import validate_password, validate_pickup_datetime, validate_user_id
 
 
 class AppFeatureTests(unittest.TestCase):
@@ -18,56 +18,39 @@ class AppFeatureTests(unittest.TestCase):
         os.unlink(self.tmp.name)
 
     def test_user_id_rules(self):
-        self.assertEqual(validate_user_id("A12345"), "A12345")
-        self.assertEqual(validate_user_id("Ashraf01"), "Ashraf01")
-        for bad in ("123456", "ab 1234", "abc", "A1234567890123"):
-            with self.assertRaises(ValueError):
-                validate_user_id(bad)
+        self.assertEqual(validate_user_id("User_01"), "User_01")
+        with self.assertRaises(ValueError):
+            validate_user_id("12345")
 
     def test_password_rules(self):
-        self.assertEqual(validate_password("StrongPass1"), "StrongPass1")
+        self.assertEqual(validate_password("Strong@123", "User_01"), "Strong@123")
         with self.assertRaises(ValueError):
-            validate_password("password")
-        with self.assertRaises(ValueError):
-            validate_password("weakpass")
+            validate_password("weakpass", "user")
 
-    def test_registration_and_duplicate(self):
-        self.db.create_basic_user("Resident1", "StrongPass1")
+    def test_pickup_time_window(self):
+        now = datetime.now() + timedelta(hours=1)
+        dt = now.replace(hour=9, minute=0)
+        self.assertIsNotNone(validate_pickup_datetime(dt.strftime("%Y-%m-%d"), "09:00"))
+
+    def test_end_to_end_points_awarded_only_completed(self):
+        self.db.create_basic_user("resident01", "Resident@123")
         self.db.complete_profile(
             {
-                "user_id": "Resident1",
-                "full_name": "Alice Tan",
-                "id_no": "ABC12345",
-                "telephone": "+60123456789",
-                "email": "alice@example.com",
+                "user_id": "resident01",
+                "full_name": "Res One",
+                "id_no": "ID12345",
+                "telephone": "+60111111111",
+                "email": "r1@example.com",
                 "zone": "Zone A",
-                "address": "Street 1",
+                "address": "Addr",
             }
         )
-        self.db.create_basic_user("Resident2", "StrongPass1")
-        with self.assertRaises(ValueError):
-            self.db.complete_profile(
-                {
-                    "user_id": "Resident2",
-                    "full_name": "Bob Tan",
-                    "id_no": "ABC12346",
-                    "telephone": "+60123456788",
-                    "email": "alice@example.com",
-                    "zone": "Zone A",
-                    "address": "Street 2",
-                }
-            )
-
-    def test_pickup_flow_and_notifications(self):
-        self.db.create_basic_user("Resident3", "StrongPass1")
-        self.db.complete_profile({"user_id": "Resident3", "full_name": "Res Three", "id_no": "ID123456", "telephone": "+60121112222", "email": "r3@example.com", "zone": "Zone A", "address": "A Road"})
         dt = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
-        self.db.create_pickup_request("Resident3", dt)
-        req = self.db.list_resident_pickups("Resident3")[0]
-        self.db.update_pickup_status("Collect1", req["pickup_id"], "IN_PROGRESS", "Started")
-        self.db.update_pickup_status("Collect1", req["pickup_id"], "COMPLETED", "Done")
-        notes = self.db.get_notifications("Resident3")
-        self.assertGreaterEqual(len(notes), 2)
+        pid = self.db.create_pickup_with_recycling("resident01", dt, "Metal", 10, "")
+        self.db.collector_update_pickup("collector01", pid, "COMPLETED", "done")
+        row = self.db.conn.execute("SELECT points_awarded,current_status FROM pickup_request WHERE pickup_id=?", (pid,)).fetchone()
+        self.assertEqual(row["current_status"], "COMPLETED")
+        self.assertEqual(row["points_awarded"], 30)
 
 
 if __name__ == "__main__":

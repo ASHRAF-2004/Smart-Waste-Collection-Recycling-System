@@ -1,16 +1,13 @@
-"""Validation helpers for login and registration flow."""
+"""Validation helpers for login, registration and pickup scheduling."""
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
-USER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{5,11}$")
+USER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{4,19}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PASSWORD_UPPER_RE = re.compile(r"[A-Z]")
 PASSWORD_LOWER_RE = re.compile(r"[a-z]")
 PASSWORD_DIGIT_RE = re.compile(r"\d")
-NAME_RE = re.compile(r"^[A-Za-z ]+$")
-ALNUM_RE = re.compile(r"^[A-Za-z0-9]+$")
-PHONE_RE = re.compile(r"^\+?\d{9,15}$")
-COMMON_PASSWORDS = {"admin123", "password", "12345678", "qwerty123", "adminadmin"}
+PASSWORD_SPECIAL_RE = re.compile(r"[^A-Za-z0-9]")
 
 
 def require(value: str, label: str) -> str:
@@ -22,19 +19,25 @@ def require(value: str, label: str) -> str:
 
 def validate_user_id(user_id: str) -> str:
     uid = (user_id or "").strip()
-    if not USER_ID_RE.match(uid):
-        raise ValueError("error_user_id")
+    if not USER_ID_RE.fullmatch(uid):
+        raise ValueError("User ID must be 5-20 chars, start with a letter, and include only letters, digits, underscore.")
     return uid
 
 
 def validate_password(password: str, user_id: str = "") -> str:
     pwd = require(password, "Password")
-    if len(pwd) < 8 or not PASSWORD_UPPER_RE.search(pwd) or not PASSWORD_LOWER_RE.search(pwd) or not PASSWORD_DIGIT_RE.search(pwd):
-        raise ValueError("error_password_strength")
-    if pwd.lower() in COMMON_PASSWORDS:
-        raise ValueError("error_password_common")
-    if user_id and pwd.lower() == user_id.lower():
-        raise ValueError("error_password_strength")
+    if not (8 <= len(pwd) <= 64):
+        raise ValueError("Password must be 8-64 characters.")
+    if not PASSWORD_UPPER_RE.search(pwd):
+        raise ValueError("Password must include uppercase letter.")
+    if not PASSWORD_LOWER_RE.search(pwd):
+        raise ValueError("Password must include lowercase letter.")
+    if not PASSWORD_DIGIT_RE.search(pwd):
+        raise ValueError("Password must include digit.")
+    if not PASSWORD_SPECIAL_RE.search(pwd):
+        raise ValueError("Password must include special character.")
+    if user_id and user_id.lower() in pwd.lower():
+        raise ValueError("Password must not contain user ID.")
     return pwd
 
 
@@ -46,8 +49,19 @@ def validate_registration_step1(user_id: str, password: str, confirm_password: s
     uid = validate_user_id(user_id)
     pwd = validate_password(password, uid)
     if pwd != (confirm_password or ""):
-        raise ValueError("error_password_match")
+        raise ValueError("Passwords do not match.")
     return uid, pwd
+
+
+def validate_pickup_datetime(date_text: str, time_text: str) -> datetime:
+    dt = datetime.strptime(f"{date_text} {time_text}", "%Y-%m-%d %H:%M")
+    if dt < datetime.now() + timedelta(minutes=30):
+        raise ValueError("Pickup must be at least 30 minutes in the future.")
+    if not (8 <= dt.hour <= 17 or (dt.hour == 18 and dt.minute == 0)):
+        raise ValueError("Pickup time must be between 08:00 and 18:00.")
+    if dt.minute not in (0, 30):
+        raise ValueError("Pickup time must use 30-minute increments.")
+    return dt
 
 
 def validate_filling_info(data: dict) -> dict:
@@ -59,55 +73,7 @@ def validate_filling_info(data: dict) -> dict:
         "zone": require(data.get("zone", ""), "Residential Zone"),
         "address": (data.get("address", "") or "").strip(),
     }
-    if len(cleaned["full_name"]) < 3 or not NAME_RE.match(cleaned["full_name"]):
-        raise ValueError("Full Name must be at least 3 characters and contain only letters/spaces.")
-    if not (6 <= len(cleaned["id_no"]) <= 20) or not ALNUM_RE.match(cleaned["id_no"]):
-        raise ValueError("Passport / ID must be 6-20 characters and alphanumeric only.")
-    if not PHONE_RE.match(cleaned["telephone"]):
-        raise ValueError("Telephone No. must be 9-15 digits and may include leading +.")
-    cleaned["email"] = cleaned["email"].lower()
-    if not EMAIL_RE.match(cleaned["email"]):
+    if not EMAIL_RE.match(cleaned["email"].lower()):
         raise ValueError("Email format is invalid.")
-    cleaned["id_no"] = cleaned["id_no"].upper()
+    cleaned["email"] = cleaned["email"].lower()
     return cleaned
-
-
-def collect_filling_info_errors(data: dict) -> dict[str, str]:
-    errors = {}
-    try:
-        validate_filling_info(data)
-    except ValueError:
-        pass
-    name = (data.get("full_name") or "").strip()
-    if not name:
-        errors["full_name"] = "Full Name is required."
-    elif len(name) < 3 or not NAME_RE.match(name):
-        errors["full_name"] = "Only letters/spaces; min 3 chars."
-    id_no = (data.get("id_no") or "").strip()
-    if not id_no:
-        errors["id_no"] = "Passport / ID is required."
-    elif not (6 <= len(id_no) <= 20) or not ALNUM_RE.match(id_no):
-        errors["id_no"] = "Alphanumeric only; 6-20 chars."
-    phone = (data.get("telephone") or "").strip()
-    if not phone:
-        errors["telephone"] = "Telephone is required."
-    elif not PHONE_RE.match(phone):
-        errors["telephone"] = "Use 9-15 digits (optional +)."
-    email = (data.get("email") or "").strip().lower()
-    if not email:
-        errors["email"] = "Email is required."
-    elif not EMAIL_RE.match(email):
-        errors["email"] = "Enter a valid email address."
-    if not (data.get("zone") or "").strip():
-        errors["zone"] = "Please select a zone."
-    return errors
-
-
-def validate_pickup_datetime(text: str):
-    try:
-        dt = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
-    except ValueError as exc:
-        raise ValueError("Date/time must be in format YYYY-MM-DD HH:MM") from exc
-    if dt <= datetime.now():
-        raise ValueError("Pickup date/time must be in the future.")
-    return dt
