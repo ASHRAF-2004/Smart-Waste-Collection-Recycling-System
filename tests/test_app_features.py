@@ -32,6 +32,17 @@ class AppFeatureTests(unittest.TestCase):
         dt = now.replace(hour=9, minute=0)
         self.assertIsNotNone(validate_pickup_datetime(dt.strftime("%Y-%m-%d"), "09:00"))
 
+
+    def test_seed_has_multiple_collectors_and_admin_login_works(self):
+        collectors = self.db.conn.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE role='WasteCollector'"
+        ).fetchone()["c"]
+        self.assertGreaterEqual(collectors, 3)
+
+        ok, status = self.db.verify_credentials("admin01", "Admin@1234")
+        self.assertTrue(ok)
+        self.assertEqual(status, "admin01")
+
     def test_end_to_end_points_awarded_only_completed(self):
         self.db.create_basic_user("resident01", "Resident@123")
         self.db.complete_profile(
